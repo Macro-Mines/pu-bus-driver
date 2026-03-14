@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { auth, db, rtdb } from '../services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import { ref, set, onDisconnect, remove } from 'firebase/database'
+import { ref, onDisconnect, remove, runTransaction } from 'firebase/database'
 import { useTracking } from '../hooks/useTracking'
 import { LogOut, Play, Square, MapPin, Navigation, User, Bus } from 'lucide-react'
 
@@ -44,18 +44,35 @@ export default function DriverDashboard({ user }) {
     if (!trackingId) return
 
     const activeRef = ref(rtdb, `active_logins/${trackingId}`)
+    let disconnectRef = null
     
-    // Set this device as the active session
-    set(activeRef, true).catch(console.error)
-    
-    // Auto-remove if connection unexpectedly drops
-    const disconnectRef = onDisconnect(activeRef)
-    disconnectRef.remove().catch(console.error)
+    // Attempt to acquire the lock using a transaction
+    runTransaction(activeRef, (currentData) => {
+      // If null, it means no one is currently logged in, so we claim it
+      if (currentData === null) {
+        return true
+      }
+      // Otherwise, it's already locked; abort the transaction
+      return
+    }).then((result) => {
+      if (!result.committed) {
+        // The lock is already held by another device
+        alert("This Bus ID is currently logged in on another device.")
+        auth.signOut()
+      } else {
+        // We successfully acquired the lock!
+        disconnectRef = onDisconnect(activeRef)
+        // Auto-remove if connection unexpectedly drops
+        disconnectRef.remove().catch(console.error)
+      }
+    }).catch(console.error)
 
     return () => {
       // Clean up on component unmount (e.g., explicit logout)
       remove(activeRef).catch(console.error)
-      disconnectRef.cancel()
+      if (disconnectRef) {
+        disconnectRef.cancel()
+      }
     }
   }, [trackingId])
 

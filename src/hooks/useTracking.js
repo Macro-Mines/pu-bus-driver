@@ -18,8 +18,8 @@ export function useTracking(busId, isTracking) {
       watchId.current = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude, speed } = position.coords
-          const newLoc = { lat: latitude, lng: longitude, speed: speed || 0 }
-          setLocation(newLoc)
+          const newLoc = { latitude, longitude, speed: speed || 0 }
+          setLocation({ lat: latitude, lng: longitude, speed: speed || 0 }) // Keep lat/lng for local state
 
           // Sync with Firebase every 5 seconds
           const now = Date.now()
@@ -48,6 +48,11 @@ export function useTracking(busId, isTracking) {
         navigator.geolocation.clearWatch(watchId.current)
         watchId.current = null
       }
+      // Remove bus from RTDB so student app stops showing it
+      if (busId) {
+        remove(ref(rtdb, `buses/${busId}`))
+      }
+      setLocation(null)
     }
 
     return () => {

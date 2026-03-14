@@ -13,7 +13,7 @@ export default function LoginScreen({ onLoginSuccess }) {
     e.preventDefault()
     setLoading(true)
     setError('')
-    
+
     // Format the bus number into the internal email structure
     // e.g., "01" becomes "bus01@pubus.in"
     // e.g., "12A" becomes "bus12a@pubus.in"
@@ -60,7 +60,6 @@ export default function LoginScreen({ onLoginSuccess }) {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Bus Number (e.g., 01, 12, 1A)</label>
             <div className="relative flex items-center">
-              <span className="absolute left-4 font-bold text-gray-400 select-none">BUS_</span>
               <input
                 type="text"
                 placeholder="01"
@@ -89,8 +88,8 @@ export default function LoginScreen({ onLoginSuccess }) {
             </div>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="btn-primary flex items-center justify-center gap-2 mt-4"
             disabled={loading || !busNumber || !password}
           >

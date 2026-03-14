@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../services/firebase'
+import { ref, get } from 'firebase/database'
+import { auth, rtdb } from '../services/firebase'
 import { Bus, CheckCircle, AlertCircle, Lock } from 'lucide-react'
 
 export default function LoginScreen({ onLoginSuccess }) {
@@ -17,9 +18,21 @@ export default function LoginScreen({ onLoginSuccess }) {
     // Format the bus number into the internal email structure
     // e.g., "01" becomes "bus01@pubus.in"
     // e.g., "12A" becomes "bus12a@pubus.in"
-    const formattedEmail = `bus${busNumber.toLowerCase().trim()}@pubus.in`
+    const cleanedId = busNumber.trim()
+    const formattedEmail = `bus${cleanedId.toLowerCase()}@pubus.in`
+    const trackingId = `BUS${cleanedId.toUpperCase()}`
 
     try {
+      // 1. Check if another instance is actively using this ID
+      const activeRef = ref(rtdb, `active_logins/${trackingId}`)
+      const snapshot = await get(activeRef)
+      if (snapshot.exists()) {
+        setError('This Bus ID is currently logged in on another device.')
+        setLoading(false)
+        return
+      }
+
+      // 2. If free, proceed with authentication
       await signInWithEmailAndPassword(auth, formattedEmail, password)
       if (onLoginSuccess) {
         onLoginSuccess()

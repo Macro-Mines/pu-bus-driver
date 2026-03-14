@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { auth, db } from '../services/firebase'
+import { auth, db, rtdb } from '../services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
+import { ref, set, onDisconnect, remove } from 'firebase/database'
 import { useTracking } from '../hooks/useTracking'
 import { LogOut, Play, Square, MapPin, Navigation, User, Bus } from 'lucide-react'
 
@@ -38,6 +39,25 @@ export default function DriverDashboard({ user }) {
 
   // Extract BUS_XX from bus01@pubus.in for clean tracking ID
   const trackingId = user?.email ? user.email.split('@')[0].toUpperCase() : user?.uid
+
+  useEffect(() => {
+    if (!trackingId) return
+
+    const activeRef = ref(rtdb, `active_logins/${trackingId}`)
+    
+    // Set this device as the active session
+    set(activeRef, true).catch(console.error)
+    
+    // Auto-remove if connection unexpectedly drops
+    const disconnectRef = onDisconnect(activeRef)
+    disconnectRef.remove().catch(console.error)
+
+    return () => {
+      // Clean up on component unmount (e.g., explicit logout)
+      remove(activeRef).catch(console.error)
+      disconnectRef.cancel()
+    }
+  }, [trackingId])
 
   const { location, error: trackingError } = useTracking(
     trackingId, 

@@ -20,9 +20,10 @@ export default function DriverDashboard({ user }) {
             setDriverData(dSnap.data())
           } else {
             // Default/Fallback data for demo
+            const emailBusId = user.email ? user.email.split('@')[0].toUpperCase() : 'BUS_XX'
             setDriverData({
-              name: "New Driver",
-              bus_id: `BUS_${user.uid.substring(0, 4).toUpperCase()}`
+              name: "Bus Driver",
+              bus_id: emailBusId
             })
           }
         } catch (err) {
@@ -35,8 +36,11 @@ export default function DriverDashboard({ user }) {
     fetchDriver()
   }, [user])
 
+  // Extract BUS_XX from bus01@pubus.in for clean tracking ID
+  const trackingId = user?.email ? user.email.split('@')[0].toUpperCase() : user?.uid
+
   const { location, error: trackingError } = useTracking(
-    user?.uid, // Use UID as the unique tracking ID
+    trackingId, 
     isTracking
   )
 

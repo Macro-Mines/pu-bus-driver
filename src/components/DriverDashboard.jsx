@@ -21,8 +21,8 @@ export default function DriverDashboard({ user }) {
           } else {
             // Default/Fallback data for demo
             setDriverData({
-              name: "Driver Account",
-              bus_id: "BUS_01"
+              name: "New Driver",
+              bus_id: `BUS_${user.uid.substring(0, 4).toUpperCase()}`
             })
           }
         } catch (err) {
@@ -36,7 +36,7 @@ export default function DriverDashboard({ user }) {
   }, [user])
 
   const { location, error: trackingError } = useTracking(
-    driverData?.bus_id, 
+    user?.uid, // Use UID as the unique tracking ID
     isTracking
   )
 

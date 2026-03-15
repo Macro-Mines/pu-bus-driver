@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { auth, db, rtdb } from '../services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import { ref, onDisconnect, remove, runTransaction } from 'firebase/database'
+import { ref, onDisconnect, remove, runTransaction, onValue } from 'firebase/database'
 import { useTracking } from '../hooks/useTracking'
 import { LogOut, Play, Square, MapPin, Navigation, User, Bus } from 'lucide-react'
 
@@ -44,15 +44,17 @@ export default function DriverDashboard({ user }) {
     if (!trackingId) return
 
     const activeRef = ref(rtdb, `active_logins/${trackingId}`)
+    // Create a unique session ID for this specific browser/login instance
+    const sessionId = Math.random().toString(36).substring(2, 15)
     let disconnectRef = null
-    
+
     // Attempt to acquire the lock using a transaction
     runTransaction(activeRef, (currentData) => {
-      // If null, it means no one is currently logged in, so we claim it
-      if (currentData === null) {
-        return true
+      // If null, no one is logged in, or if it's somehow already our session, claim it
+      if (currentData === null || currentData === sessionId) {
+        return sessionId
       }
-      // Otherwise, it's already locked; abort the transaction
+      // Otherwise, someone else is logged in; abort transaction
       return
     }).then((result) => {
       if (!result.committed) {
@@ -67,8 +69,20 @@ export default function DriverDashboard({ user }) {
       }
     }).catch(console.error)
 
+    // Listen to changes on the lock to detect if another device forcibly takes it
+    // or if the lock is somehow lost while we are still here.
+    const unsubscribe = onValue(activeRef, (snapshot) => {
+      const currentLoc = snapshot.val()
+      // If the lock changes to someone else's sessionId, kick this device out
+      if (currentLoc !== null && currentLoc !== sessionId) {
+        alert("Your session was terminated because this Bus ID logged in on another device.")
+        auth.signOut()
+      }
+    })
+
     return () => {
       // Clean up on component unmount (e.g., explicit logout)
+      unsubscribe() // Stop listening to lock changes
       remove(activeRef).catch(console.error)
       if (disconnectRef) {
         disconnectRef.cancel()
@@ -77,110 +91,140 @@ export default function DriverDashboard({ user }) {
   }, [trackingId])
 
   const { location, error: trackingError } = useTracking(
-    trackingId, 
+    trackingId,
     isTracking
   )
 
-  const handleLogout = () => auth.signOut()
+  const handleLogout = () => {
+    if (isTracking) {
+      alert("Please stop the trip before signing out.")
+      return
+    }
+    auth.signOut()
+  }
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f7f9fc]">
-      <div className="animate-spin rounded-full h-12 w-12 border-4 border-accent border-t-transparent"></div>
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+      <div className="animate-spin rounded-full h-10 w-10 border-2 border-zinc-900 border-t-transparent"></div>
     </div>
   )
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f9fc]">
+    <div className="min-h-screen flex flex-col bg-zinc-50 selection:bg-zinc-200">
       {/* Header */}
-      <header className="bg-white p-6 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center text-white">
-            <User className="w-6 h-6" />
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-zinc-200/60 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-white border border-zinc-200 shadow-sm rounded-full flex items-center justify-center text-zinc-900">
+            <User className="w-5 h-5 stroke-[1.5]" />
           </div>
-          <div>
-            <h2 className="font-bold text-gray-900 leading-tight">
+          <div className="flex flex-col">
+            <h2 className="text-base font-semibold text-zinc-900 tracking-tight leading-none mb-1.5">
               {driverData?.name || 'Driver'}
             </h2>
-            <p className="text-sm text-gray-500 flex items-center gap-1">
-              <Bus className="w-3 h-3" /> {driverData?.bus_id || 'No Bus Assigned'}
-            </p>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+              <Bus className="w-3.5 h-3.5" /> 
+              <span>{driverData?.bus_id || 'No Bus Assigned'}</span>
+            </div>
           </div>
         </div>
-        <button 
+        <button
           onClick={handleLogout}
-          className="p-2 text-gray-400 hover:text-danger transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors active:scale-95"
+          aria-label="Logout"
         >
-          <LogOut className="w-6 h-6" />
+          <LogOut className="w-5 h-5 stroke-[1.5]" />
         </button>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 flex flex-col gap-6">
-        
+      <main className="flex-1 p-6 flex flex-col gap-6 max-w-md mx-auto w-full">
+
         {/* Status Card */}
-        <div className={`p-6 rounded-2xl shadow-md flex items-center gap-4 transition-all ${isTracking ? 'bg-success/10 border-2 border-success/30' : 'bg-white'}`}>
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isTracking ? 'bg-success text-white animate-pulse' : 'bg-gray-100 text-gray-400'}`}>
-            <Navigation className="w-6 h-6" />
+        <div className={`p-6 rounded-3xl border transition-all duration-500 flex items-center gap-5 relative overflow-hidden ${
+          isTracking 
+            ? 'bg-emerald-50 border-emerald-200 shadow-[0_8px_30px_rgb(16,185,129,0.12)]' 
+            : 'bg-white border-zinc-200 shadow-sm'
+        }`}>
+          {isTracking && (
+             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
+          )}
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 border ${
+            isTracking 
+              ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/30' 
+              : 'bg-zinc-100 text-zinc-400 border-zinc-200'
+          }`}>
+            <Navigation className={`w-6 h-6 stroke-[1.5] ${isTracking ? 'animate-pulse' : ''}`} />
           </div>
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+          <div className="relative z-10">
+            <p className="text-xs font-medium uppercase tracking-widest text-zinc-500 mb-1">
               Trip Status
             </p>
-            <h3 className={`text-xl font-bold ${isTracking ? 'text-success' : 'text-gray-400'}`}>
+            <h3 className={`text-xl font-bold tracking-tight ${isTracking ? 'text-emerald-700' : 'text-zinc-400'}`}>
               {isTracking ? 'LIVE TRACKING' : 'OFFLINE'}
             </h3>
           </div>
         </div>
 
         {/* Location Display */}
-        <div className="bg-white p-6 rounded-2xl shadow-md space-y-4">
-          <div className="flex items-center gap-2 text-gray-500">
-            <MapPin className="w-4 h-4" />
-            <span className="text-sm font-semibold">LIVE COORDINATES</span>
+        <div className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm space-y-5">
+          <div className="flex items-center gap-2.5 text-zinc-700">
+            <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center">
+              <MapPin className="w-4 h-4 stroke-[1.5] text-zinc-600" />
+            </div>
+            <span className="text-sm font-semibold tracking-wide">LIVE COORDINATES</span>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 p-4 rounded-xl">
-              <p className="text-xs text-gray-400 font-bold uppercase mb-1">Latitude</p>
-              <p className="text-lg font-mono font-bold text-gray-800">
+            <div className="bg-zinc-50/50 border border-zinc-100 p-5 rounded-2xl transition-colors hover:bg-zinc-50">
+              <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest mb-2">Latitude</p>
+              <p className="text-xl font-mono text-zinc-900 tracking-tight">
                 {location?.lat?.toFixed(6) || '—.——————'}
               </p>
             </div>
-            <div className="bg-gray-50 p-4 rounded-xl">
-              <p className="text-xs text-gray-400 font-bold uppercase mb-1">Longitude</p>
-              <p className="text-lg font-mono font-bold text-gray-800">
+            <div className="bg-zinc-50/50 border border-zinc-100 p-5 rounded-2xl transition-colors hover:bg-zinc-50">
+              <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest mb-2">Longitude</p>
+              <p className="text-xl font-mono text-zinc-900 tracking-tight">
                 {location?.lng?.toFixed(6) || '—.——————'}
               </p>
             </div>
           </div>
 
           {trackingError && (
-            <div className="p-3 bg-danger/10 text-danger text-xs rounded-lg font-medium">
-              Error: {trackingError}
+            <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 text-sm rounded-2xl flex items-start gap-3 mt-2">
+               <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                 <span className="text-rose-600 font-bold text-xs">!</span>
+               </div>
+              <p className="leading-relaxed font-medium">Error: {trackingError}</p>
             </div>
           )}
         </div>
 
         {/* Controls */}
-        <div className="mt-auto pb-6">
+        <div className="mt-auto pt-8 pb-6">
           {!isTracking ? (
-            <button 
+            <button
               onClick={() => setIsTracking(true)}
-              className="w-full bg-accent text-white py-6 rounded-2xl text-xl font-black shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all"
+              className="w-full relative group overflow-hidden bg-zinc-900 text-white py-5 rounded-[2rem] text-lg font-semibold shadow-xl shadow-zinc-900/20 active:scale-[0.98] transition-all duration-300"
             >
-              <Play className="w-7 h-7 fill-white" />
-              START TRIP
+              <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+              <div className="relative z-10 flex items-center justify-center gap-3">
+                <Play className="w-5 h-5 fill-current" />
+                <span>START TRIP</span>
+              </div>
             </button>
           ) : (
-            <button 
+            <button
               onClick={() => setIsTracking(false)}
-              className="w-full bg-danger text-white py-6 rounded-2xl text-xl font-black shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all"
+              className="w-full relative group overflow-hidden bg-rose-600 text-white py-5 rounded-[2rem] text-lg font-semibold shadow-xl shadow-rose-600/20 active:scale-[0.98] transition-all duration-300"
             >
-              <Square className="w-7 h-7 fill-white" />
-              STOP TRIP
+              <div className="absolute inset-0 bg-black/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+              <div className="relative z-10 flex items-center justify-center gap-3">
+                <Square className="w-5 h-5 fill-current" />
+                <span>STOP TRIP</span>
+              </div>
             </button>
           )}
-          <p className="text-center text-xs text-gray-400 mt-4 leading-relaxed px-4">
+          <p className="text-center text-[13px] text-zinc-400 mt-6 leading-relaxed px-6 font-medium">
             Coordinates are updated every 5 seconds to the central system for student tracking.
           </p>
         </div>

@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: {
         name: 'PU Bus Driver',
         short_name: 'Driver App',
-        description: 'Parul University Bus Driver Dashboard',
+        description: 'Pondicherry University Bus Driver Dashboard',
         theme_color: '#f7f9fc',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },

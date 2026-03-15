@@ -31,6 +31,7 @@ export function useTracking(busId, isTracking, routeId) {
             const busRef = ref(rtdb, `buses/${busId}`)
             set(busRef, {
               ...newLoc,
+              route_id: routeId || 'university_route',
               next_stop: trackingResult?.nextStopId || null,
               eta_next_stop_seconds: trackingResult?.etaSeconds || 0,
               last_updated: now,

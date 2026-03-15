@@ -92,7 +92,8 @@ export default function DriverDashboard({ user }) {
 
   const { location, error: trackingError } = useTracking(
     trackingId,
-    isTracking
+    isTracking,
+    driverData?.route_id
   )
 
   const handleLogout = () => {

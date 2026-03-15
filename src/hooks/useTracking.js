@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { ref, set, onValue, remove } from 'firebase/database'
 import { rtdb } from '../services/firebase'
+import { calculateNextStop } from '../services/trackingUtils'
 
-export function useTracking(busId, isTracking) {
+export function useTracking(busId, isTracking, routeId) {
   const [location, setLocation] = useState(null)
   const [error, setError] = useState(null)
   const watchId = useRef(null)
@@ -24,11 +25,16 @@ export function useTracking(busId, isTracking) {
           // Sync with Firebase every 5 seconds
           const now = Date.now()
           if (now - lastSyncTime.current >= 5000) {
+            // Calculate next stop and ETA
+            const trackingResult = calculateNextStop(latitude, longitude, speed || 0, routeId || 'university_route');
+            
             const busRef = ref(rtdb, `buses/${busId}`)
             set(busRef, {
               ...newLoc,
+              next_stop: trackingResult?.nextStopId || null,
+              eta_next_stop_seconds: trackingResult?.etaSeconds || 0,
               last_updated: now,
-              bus_id: busId, // Just in case
+              bus_id: busId,
             })
             lastSyncTime.current = now
           }

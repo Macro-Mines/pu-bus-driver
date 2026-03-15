@@ -4,14 +4,14 @@ import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyARKn3gfNWA0cwDGU7x6cDi_nRNAgGN0OA",
-  authDomain: "pu-bus.firebaseapp.com",
-  databaseURL: "https://pu-bus-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "pu-bus",
-  storageBucket: "pu-bus.firebasestorage.app",
-  messagingSenderId: "368216113936",
-  appId: "1:368216113936:web:7a61133e16c7855eef1b95",
-  measurementId: "G-JXN6L097NM"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

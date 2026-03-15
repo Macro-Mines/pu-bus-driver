@@ -3,7 +3,7 @@ import { auth, db, rtdb } from '../services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { ref, onDisconnect, remove, runTransaction, onValue } from 'firebase/database'
 import { useTracking } from '../hooks/useTracking'
-import { LogOut, Play, Square, MapPin, Navigation, User, Bus } from 'lucide-react'
+import { LogOut, Play, Square, MapPin, Navigation, User, Bus, RefreshCw, AlertCircle, Settings } from 'lucide-react'
 
 export default function DriverDashboard({ user }) {
   const [driverData, setDriverData] = useState(null)
@@ -123,7 +123,7 @@ export default function DriverDashboard({ user }) {
               {driverData?.name || 'Driver'}
             </h2>
             <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
-              <Bus className="w-3.5 h-3.5" /> 
+              <Bus className="w-3.5 h-3.5" />
               <span>{driverData?.bus_id || 'No Bus Assigned'}</span>
             </div>
           </div>
@@ -141,19 +141,17 @@ export default function DriverDashboard({ user }) {
       <main className="flex-1 p-6 flex flex-col gap-6 max-w-md mx-auto w-full">
 
         {/* Status Card */}
-        <div className={`p-6 rounded-3xl border transition-all duration-500 flex items-center gap-5 relative overflow-hidden ${
-          isTracking 
-            ? 'bg-emerald-50 border-emerald-200 shadow-[0_8px_30px_rgb(16,185,129,0.12)]' 
-            : 'bg-white border-zinc-200 shadow-sm'
-        }`}>
-          {isTracking && (
-             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
-          )}
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 border ${
-            isTracking 
-              ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/30' 
-              : 'bg-zinc-100 text-zinc-400 border-zinc-200'
+        <div className={`p-6 rounded-3xl border transition-all duration-500 flex items-center gap-5 relative overflow-hidden ${isTracking
+          ? 'bg-emerald-50 border-emerald-200 shadow-[0_8px_30px_rgb(16,185,129,0.12)]'
+          : 'bg-white border-zinc-200 shadow-sm'
           }`}>
+          {isTracking && (
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
+          )}
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 border ${isTracking
+            ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/30'
+            : 'bg-zinc-100 text-zinc-400 border-zinc-200'
+            }`}>
             <Navigation className={`w-6 h-6 stroke-[1.5] ${isTracking ? 'animate-pulse' : ''}`} />
           </div>
           <div className="relative z-10">
@@ -179,23 +177,59 @@ export default function DriverDashboard({ user }) {
             <div className="bg-zinc-50/50 border border-zinc-100 p-5 rounded-2xl transition-colors hover:bg-zinc-50">
               <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest mb-2">Latitude</p>
               <p className="text-xl font-mono text-zinc-900 tracking-tight">
-                {location?.lat?.toFixed(6) || '—.——————'}
+                {location?.lat?.toFixed(6) || '—.————'}
               </p>
             </div>
             <div className="bg-zinc-50/50 border border-zinc-100 p-5 rounded-2xl transition-colors hover:bg-zinc-50">
               <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest mb-2">Longitude</p>
               <p className="text-xl font-mono text-zinc-900 tracking-tight">
-                {location?.lng?.toFixed(6) || '—.——————'}
+                {location?.lng?.toFixed(6) || '—.————'}
               </p>
             </div>
           </div>
 
           {trackingError && (
-            <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 text-sm rounded-2xl flex items-start gap-3 mt-2">
-               <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                 <span className="text-rose-600 font-bold text-xs">!</span>
-               </div>
-              <p className="leading-relaxed font-medium">Error: {trackingError}</p>
+            <div className="space-y-4 mt-2">
+              {trackingError.code === 1 ? (
+                // Permission Denied Case
+                <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <Settings className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-amber-800 text-sm mb-1">Location Access Blocked</h4>
+                      <p className="text-amber-700 text-xs leading-relaxed">
+                        To track the bus, please turn on your Location:
+                        <span className="block mt-2 font-medium">• Pull down your phone's top icons drawer.</span>
+                        <span className="block font-medium">• Turn on the <strong>'Location'</strong> or <strong>'GPS'</strong> icon.</span>
+                        <span className="block font-medium">• Then tap the <strong>'RETRY'</strong> button below.</span>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsTracking(false);
+                      setTimeout(() => setIsTracking(true), 100);
+                    }}
+                    className="flex items-center justify-center gap-2 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-colors shadow-lg shadow-amber-600/20"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    RETRY PERMISSION
+                  </button>
+                </div>
+              ) : (
+                // Other Errors
+                <div className="p-4 bg-rose-50 border border-rose-100 text-rose-600 text-sm rounded-2xl flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="leading-relaxed font-semibold">Tracking Error</p>
+                    <p className="text-xs opacity-80">{trackingError.message || 'Unknown location error'}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

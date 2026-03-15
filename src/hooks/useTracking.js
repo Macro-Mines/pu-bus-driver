@@ -16,6 +16,8 @@ export function useTracking(busId, isTracking, routeId) {
         return
       }
 
+      setError(null)
+
       watchId.current = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude, speed } = position.coords
@@ -42,7 +44,7 @@ export function useTracking(busId, isTracking, routeId) {
         },
         (err) => {
           console.error("Geolocation error:", err)
-          setError(err.message)
+          setError({ message: err.message, code: err.code })
         },
         {
           enableHighAccuracy: true,

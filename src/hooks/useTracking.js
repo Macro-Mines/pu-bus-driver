@@ -24,9 +24,9 @@ export function useTracking(busId, isTracking, routeId) {
           const newLoc = { latitude, longitude, speed: speed || 0 }
           setLocation({ lat: latitude, lng: longitude, speed: speed || 0 }) // Keep lat/lng for local state
 
-          // Sync with Firebase every 5 seconds
+          // Sync with Firebase every 1 second for "no latency" feel
           const now = Date.now()
-          if (now - lastSyncTime.current >= 5000) {
+          if (now - lastSyncTime.current >= 1000) {
             // Calculate next stop and ETA
             const trackingResult = calculateNextStop(latitude, longitude, speed || 0, routeId || 'university_route');
             

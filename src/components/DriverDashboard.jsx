@@ -7,8 +7,16 @@ import { LogOut, Play, Square, MapPin, Navigation, User, Bus, RefreshCw, AlertCi
 
 export default function DriverDashboard({ user }) {
   const [driverData, setDriverData] = useState(null)
-  const [isTracking, setIsTracking] = useState(false)
+  const [isTracking, setIsTracking] = useState(() => {
+    // Restore tracking state on refresh
+    return localStorage.getItem('isTracking') === 'true'
+  })
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Sync isTracking to localStorage whenever it changes
+    localStorage.setItem('isTracking', isTracking)
+  }, [isTracking])
 
   useEffect(() => {
     async function fetchDriver() {
@@ -44,49 +52,52 @@ export default function DriverDashboard({ user }) {
     if (!trackingId) return
 
     const activeRef = ref(rtdb, `active_logins/${trackingId}`)
-    // Create a unique session ID for this specific browser/login instance
-    const sessionId = Math.random().toString(36).substring(2, 15)
+    
+    // Use persistent sessionId to survive refresh
+    let sessionId = localStorage.getItem('sessionId')
+    if (!sessionId) {
+      sessionId = Math.random().toString(36).substring(2, 15)
+      localStorage.setItem('sessionId', sessionId)
+    }
+
     let disconnectRef = null
 
     // Attempt to acquire the lock using a transaction
     runTransaction(activeRef, (currentData) => {
-      // If null, no one is logged in, or if it's somehow already our session, claim it
+      // If null, no one is logged in, or if it's our persistent session ID, claim/keep it
       if (currentData === null || currentData === sessionId) {
         return sessionId
       }
-      // Otherwise, someone else is logged in; abort transaction
       return
     }).then((result) => {
       if (!result.committed) {
         // The lock is already held by another device
         alert("This Bus ID is currently logged in on another device.")
+        localStorage.removeItem('sessionId')
+        localStorage.removeItem('isTracking')
         auth.signOut()
       } else {
-        // We successfully acquired the lock!
+        // We successfully acquired/recovered the lock!
         disconnectRef = onDisconnect(activeRef)
-        // Auto-remove if connection unexpectedly drops
         disconnectRef.remove().catch(console.error)
       }
     }).catch(console.error)
 
-    // Listen to changes on the lock to detect if another device forcibly takes it
-    // or if the lock is somehow lost while we are still here.
+    // Listen to changes on the lock
     const unsubscribe = onValue(activeRef, (snapshot) => {
       const currentLoc = snapshot.val()
-      // If the lock changes to someone else's sessionId, kick this device out
       if (currentLoc !== null && currentLoc !== sessionId) {
         alert("Your session was terminated because this Bus ID logged in on another device.")
+        localStorage.removeItem('sessionId')
+        localStorage.removeItem('isTracking')
         auth.signOut()
       }
     })
 
     return () => {
-      // Clean up on component unmount (e.g., explicit logout)
-      unsubscribe() // Stop listening to lock changes
-      remove(activeRef).catch(console.error)
-      if (disconnectRef) {
-        disconnectRef.cancel()
-      }
+      // Note: We DON'T remove the lock on unmount anymore
+      // This allows the session to survive a page refresh
+      unsubscribe()
     }
   }, [trackingId])
 
@@ -101,7 +112,14 @@ export default function DriverDashboard({ user }) {
       alert("Please stop the trip before signing out.")
       return
     }
-    auth.signOut()
+    // Explicit logout clears everything
+    const trackingId = user?.email ? user.email.split('@')[0].toUpperCase() : user?.uid
+    const activeRef = ref(rtdb, `active_logins/${trackingId}`)
+    remove(activeRef).then(() => {
+      localStorage.removeItem('sessionId')
+      localStorage.removeItem('isTracking')
+      auth.signOut()
+    }).catch(console.error)
   }
 
   if (loading) return (

@@ -52,7 +52,7 @@ export default function DriverDashboard({ user }) {
     if (!trackingId) return
 
     const activeRef = ref(rtdb, `active_logins/${trackingId}`)
-    
+
     // Use persistent sessionId to survive refresh
     let sessionId = localStorage.getItem('sessionId')
     if (!sessionId) {
@@ -278,7 +278,7 @@ export default function DriverDashboard({ user }) {
             </button>
           )}
           <p className="text-center text-[13px] text-zinc-400 mt-6 leading-relaxed px-6 font-medium">
-            Coordinates are updated every 5 seconds to the central system for student tracking.
+            Coordinates are updated every seconds to the central system for student tracking.
           </p>
         </div>
       </main>
